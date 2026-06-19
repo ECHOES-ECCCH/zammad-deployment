@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: zammad
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+spec:
+  host: zammad-staging.example.com
+  to:
+    kind: Service
+    name: zammad-nginx
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

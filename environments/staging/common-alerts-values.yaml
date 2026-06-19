@@ -1,0 +1,4 @@
+alertManagerConfig:
+  create: true
+  defaultReceivers:  #Fulfill with proper receivers
+    -

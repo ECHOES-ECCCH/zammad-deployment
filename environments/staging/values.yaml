@@ -1,0 +1,229 @@
+# Minimal staging values for direct upstream chart: zammad/zammad.
+# Keep this file small until the first staging deployment works.
+
+image:
+  repository: ghcr.io/zammad/zammad
+  # Empty tag means chart appVersion is used.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+
+autoWizard:
+  enabled: false
+
+# TEST ONLY: these passwords are for bootstrap/staging smoke tests.
+# Before shared staging or production, move them to existing Kubernetes Secrets.
+secrets:
+  autowizard:
+    useExisting: true
+    secretName: zammad-autowizard
+    secretKey: autowizard
+
+  elasticsearch:
+    useExisting: false
+
+  postgresql:
+    useExisting: true
+    secretName: postgresql-pass
+    secretKey: postgresql-pass
+
+  redis:
+    useExisting: true
+    secretName: redis-pass
+    secretKey: redis-password
+    sentinel:
+      useExisting: false
+
+  s3:
+    useExisting: false
+
+zammadConfig:
+  initContainers:
+    postgresql:
+      # Runs db:migrate / DB initialization and loads the Rails app.
+      # Needs more memory than normal app containers.
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 3Gi
+
+    elasticsearch:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+
+    zammad:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+
+  nginx:
+    replicas: 1
+    clientMaxBodySize: 50M
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  railsserver:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    # For TLS edge Route, add your router/proxy CIDRs later.
+    trustedProxies: "['127.0.0.1', '::1']"
+    extraEnv:
+      - name: PUMA_SKIP_WORLD_WRITABLE_CHECK
+        value: "true"
+
+  scheduler:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+
+  websocket:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+
+  postgresql:
+    enabled: true
+    db: zammad_production
+    host: zammad-postgresql
+    pass: ""
+    port: 5432
+    user: zammad
+    options: "pool=50"
+
+  redis:
+    enabled: true
+    # Chart 16.x README says the Redis service changed from zammad-redis-master to zammad-redis.
+    host: zammad-redis
+    port: 6379
+    pass: ""
+    sentinel:
+      enabled: false
+
+  memcached:
+    enabled: true
+    host: zammad-memcached
+    port: 11211
+
+  elasticsearch:
+    enabled: true
+    host: zammad-elasticsearch-master
+    initialisation: true
+    reindex: false
+    schema: http
+    port: 9200
+    user: ""
+    pass: ""
+
+  minio:
+    enabled: false
+
+  initJob:
+    randomName: true
+    ttlSecondsAfterFinished: 3600
+
+  cronJob:
+    reindex:
+      suspend: true
+
+postgresql:
+  auth:
+    username: zammad
+    database: zammad_production
+    existingSecret: postgresql-pass
+    secretKeys:
+      adminPasswordKey: postgresql-admin-password
+      userPasswordKey: postgresql-pass
+      replicationPasswordKey: postgresql-replication-password
+
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "standard"
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+redis:
+  architecture: standalone
+  auth:
+    existingSecret: redis-pass
+    existingSecretPasswordKey: redis-password
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+memcached:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+elasticsearch:
+  clusterName: zammad
+  master:
+    replicaCount: 1
+    heapSize: 512m
+    persistence:
+      enabled: true
+      storageClass: "standard"
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+minio:
+  enabled: false
