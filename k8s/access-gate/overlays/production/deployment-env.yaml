@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zammad-access-gate
+spec:
+  template:
+    spec:
+      containers:
+        - name: oauth2-proxy
+          env:
+            - name: OIDC_ISSUER_URL
+              value: https://aai-demo.egi.eu/auth/realms/egi
+            - name: REDIRECT_URL
+              value: https://support.culturalheritagecloud.eu/oauth2/callback

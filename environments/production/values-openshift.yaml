@@ -1,0 +1,61 @@
+# OpenShift-specific overlay for direct upstream chart zammad/zammad.
+# Based on the upstream README section "Deploying on OpenShift".
+# This file intentionally contains only OpenShift compatibility settings.
+
+securityContext: null
+
+zammadConfig:
+  initContainers:
+    zammad:
+      securityContext:
+        runAsUser: null
+
+    volumePermissions:
+      enabled: false
+
+  tmpDirVolume:
+    emptyDir:
+      medium: Memory
+      sizeLimit: 100Mi
+
+elasticsearch:
+  # vm.max_map_count must be handled by the OpenShift/platform admin, not privileged init containers.
+  sysctlImage:
+    enabled: false
+  master:
+    podSecurityContext:
+      enabled: false
+    containerSecurityContext:
+      enabled: false
+
+# Chart 16.x uses CloudPirates Memcached/Redis subcharts.
+# These charts do not use the Bitnami "enabled: false" securityContext structure.
+# We null fixed UID/GID fields so OpenShift can assign arbitrary UIDs from the namespace range.
+memcached:
+  podSecurityContext:
+    fsGroup: null
+  containerSecurityContext:
+    runAsUser: null
+
+redis:
+  podSecurityContext:
+    fsGroup: null
+  containerSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    seccompProfile: null
+  volumePermissions:
+    enabled: false
+
+postgresql:
+  primary:
+    podSecurityContext:
+      enabled: false
+    containerSecurityContext:
+      enabled: false
+
+minio:
+  podSecurityContext:
+    enabled: false
+  containerSecurityContext:
+    enabled: false

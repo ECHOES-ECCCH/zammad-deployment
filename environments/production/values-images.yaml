@@ -1,0 +1,104 @@
+# Image override layer for PSNC PaaS Docker Hub proxy.
+# Documentation pattern:
+#   docker.io/<namespace>/<image> -> registry.paas.psnc.pl/base/<namespace>/<image>
+#   docker.io/library/<image>     -> registry.paas.psnc.pl/base/<image>
+#
+# IMPORTANT:
+# - This proxy description covers Docker Hub only.
+# - Main Zammad image is from GHCR: ghcr.io/zammad/zammad.
+# - If your cluster cannot pull from GHCR, mirror ghcr.io/zammad/zammad to a project in registry.paas.psnc.pl
+#   and replace image.repository below.
+
+image:
+  repository: ghcr.io/zammad/zammad
+  pullPolicy: IfNotPresent
+
+zammadConfig:
+  initContainers:
+    volumePermissions:
+      image:
+        repository: registry.paas.psnc.pl/base/alpine
+        # This init container is disabled in values-openshift.yaml. Kept for defensive completeness.
+        tag: "3.23.4"
+        pullPolicy: IfNotPresent
+
+# Bitnami legacy images used by the current upstream chart values for Elasticsearch/PostgreSQL/MinIO.
+elasticsearch:
+  image:
+    registry: registry.paas.psnc.pl
+    repository: base/bitnamilegacy/elasticsearch
+  sysctlImage:
+    registry: registry.paas.psnc.pl
+    repository: base/bitnamilegacy/os-shell
+  volumePermissions:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/bitnamilegacy/os-shell
+  metrics:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/bitnamilegacy/elasticsearch-exporter
+
+postgresql:
+  image:
+    registry: registry.paas.psnc.pl
+    repository: base/bitnamilegacy/postgresql
+  volumePermissions:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/bitnamilegacy/os-shell
+  metrics:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/bitnamilegacy/postgres-exporter
+
+minio:
+  image:
+    registry: registry.paas.psnc.pl
+    repository: base/bitnamilegacy/minio
+  clientImage:
+    registry: registry.paas.psnc.pl
+    repository: base/bitnamilegacy/minio-client
+  defaultInitContainers:
+    volumePermissions:
+      image:
+        registry: registry.paas.psnc.pl
+        repository: base/bitnamilegacy/os-shell
+  console:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/bitnamilegacy/minio-object-browser
+
+# Chart 16.x replaced Redis/Memcached subcharts with CloudPirates.
+# Their default application images are official Docker Hub images, not Bitnami images:
+#   redis.image.repository      -> redis
+#   memcached.image.repository  -> memcached
+# Exporters use their own Docker Hub namespaces.
+redis:
+  image:
+    registry: registry.paas.psnc.pl
+    repository: base/redis
+  sentinel:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/redis
+    masterService:
+      image:
+        repository: registry.paas.psnc.pl/base/alpine/kubectl
+  volumePermissions:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/busybox
+  metrics:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/oliver006/redis_exporter
+
+memcached:
+  image:
+    registry: registry.paas.psnc.pl
+    repository: base/memcached
+  metrics:
+    image:
+      registry: registry.paas.psnc.pl
+      repository: base/prom/memcached-exporter

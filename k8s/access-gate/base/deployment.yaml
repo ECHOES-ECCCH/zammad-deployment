@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zammad-access-gate
+  labels:
+    app: zammad-access-gate
+    app.kubernetes.io/name: zammad-access-gate
+    app.kubernetes.io/component: access-gate
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: zammad-access-gate
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: zammad-access-gate
+        app.kubernetes.io/name: zammad-access-gate
+        app.kubernetes.io/component: access-gate
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: custom-templates
+          configMap:
+            name: zammad-access-gate-templates
+            defaultMode: 0444
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=$(OIDC_ISSUER_URL)
+            - --code-challenge-method=S256
+            - --redirect-url=$(REDIRECT_URL)
+            - --scope=openid profile email eduperson_entitlement
+            - --oidc-groups-claim=eduperson_entitlement
+            - --allowed-group=urn:mace:egi.eu:group:vo.echoes.eu:role=member#aai.egi.eu
+            - --email-domain=*
+            - --upstream=http://zammad-nginx.$(POD_NAMESPACE).svc.cluster.local:8080/
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+            - --cookie-name=__Host-zammad_access
+            - --cookie-path=/
+            - --cookie-secure=true
+            - --cookie-httponly=true
+            - --cookie-samesite=lax
+            - --cookie-expire=1h
+            - --pass-user-headers=false
+            - --pass-basic-auth=false
+            - --pass-access-token=false
+            - --pass-authorization-header=false
+            - --custom-templates-dir=/etc/oauth2-proxy/templates
+            - --prefer-email-to-user=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: zammad-access-gate-oidc
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: zammad-access-gate-oidc
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: zammad-access-gate-oidc
+                  key: cookie-secret
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OIDC_ISSUER_URL
+              value: CHANGE_ME
+            - name: REDIRECT_URL
+              value: https://CHANGE_ME/oauth2/callback
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 3
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            timeoutSeconds: 1
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          volumeMounts:
+            - name: custom-templates
+              readOnly: true
+              mountPath: /etc/oauth2-proxy/templates
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      schedulerName: default-scheduler

@@ -1,0 +1,111 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: zammad-postgres-backup-to-s3
+spec:
+  concurrencyPolicy: Forbid
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+
+          initContainers:
+            - name: download-mc
+              image: registry.paas.psnc.pl/base/curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "Downloading S3 client..."
+                  curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /tools/mc
+                  chmod +x /tools/mc
+
+                  echo "S3 client downloaded:"
+                  ls -lh /tools/mc
+
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+
+          containers:
+            - name: backup
+              image: registry.paas.psnc.pl/base/postgres:17
+
+              env:
+                - name: PGHOST
+                  value: zammad-postgresql
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  value: zammad_production
+                - name: PGUSER
+                  value: zammad
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                       name: postgresql-pass
+                       key: postgresql-pass
+                - name: S3_ENDPOINT
+                  value: CHANGE_ME
+                - name: S3_BACKUPS_BUCKET
+                  value: zammad-backups
+                - name: S3_PREFIX
+                  value: postgres
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: zammad-s3
+                      key: S3_ACCESS_KEY
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: zammad-s3
+                      key: S3_SECRET_KEY
+
+                - name: HOME
+                  value: /mc-config
+                - name: MC_CONFIG_DIR
+                  value: /mc-config/.mc
+
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  mkdir -p /mc-config/.mc
+
+                  FILE="/tmp/zammad-db-$(date +%Y%m%d-%H%M%S).dump"
+
+                  echo "Creating PostgreSQL dump..."
+                  pg_dump -Fc -f "$FILE"
+
+                  echo "Dump created:"
+                  ls -lh "$FILE"
+
+                  echo "Configuring S3 client..."
+                  /tools/mc --insecure alias set psnc "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+
+                  echo "Uploading dump to S3..."
+                  /tools/mc --insecure cp "$FILE" "psnc/$S3_BACKUPS_BUCKET/$S3_PREFIX/"
+
+                  echo "Backup uploaded."
+
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+                - name: mc-config
+                  mountPath: /mc-config
+
+          volumes:
+            - name: tools
+              emptyDir: { }
+            - name: mc-config
+              emptyDir: { }

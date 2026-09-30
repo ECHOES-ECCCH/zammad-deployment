@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zammad-postgres-restore-from-s3
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+
+      initContainers:
+        - name: download-mc
+          image: registry.paas.psnc.pl/base/curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /tools/mc
+              chmod +x /tools/mc
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+
+      containers:
+        - name: restore
+          image: registry.paas.psnc.pl/base/postgres:17
+          env:
+            - name: PGHOST
+              value: zammad-postgresql
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: zammad_production
+            - name: PGUSER
+              value: zammad
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-pass
+                  key: postgresql-pass
+            - name: S3_ENDPOINT
+              value: CHANGE_ME
+            - name: S3_BUCKET
+              value: zammad-backups
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zammad-s3
+                  key: S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zammad-s3
+                  key: S3_SECRET_KEY
+            - name: HOME
+              value: /mc-config
+            - name: MC_CONFIG_DIR
+              value: /mc-config/.mc
+
+            - name: RESTORE_OBJECT
+              valueFrom:
+                configMapKeyRef:
+                  name: zammad-postgres-restore-from-s3-config
+                  key: RESTORE_OBJECT
+
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              mkdir -p /mc-config/.mc
+
+              echo "Configuring S3 client..."
+              /tools/mc --insecure alias set psnc "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+
+              echo "Downloading dump from S3..."
+              /tools/mc --insecure cp "psnc/$S3_BUCKET/$RESTORE_OBJECT" /tmp/restore.dump
+
+              echo "Downloaded dump:"
+              ls -lh /tmp/restore.dump
+
+              echo "Restoring PostgreSQL database..."
+              pg_restore \
+                --exit-on-error \
+                --clean \
+                --if-exists \
+                --no-owner \
+                --no-privileges \
+                --dbname="$PGDATABASE" \
+                /tmp/restore.dump
+
+              echo "Restore finished."
+
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+            - name: mc-config
+              mountPath: /mc-config
+
+      volumes:
+        - name: tools
+          emptyDir: {}
+        - name: mc-config
+          emptyDir: {}

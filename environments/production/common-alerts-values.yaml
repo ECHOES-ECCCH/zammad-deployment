@@ -1,0 +1,6 @@
+alertManagerConfig:
+  create: true
+  defaultReceivers:
+    - name: email
+      emailConfigs:
+        - to: "CHANGE_ME"

@@ -1,0 +1,4 @@
+namespace: echoes-helpdesk-production
+
+resources:
+  - ../../base

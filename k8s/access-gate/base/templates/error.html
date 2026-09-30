@@ -1,0 +1,60 @@
+{{define "error.html"}}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{.StatusCode}} {{.Title}}</title>
+    <style>
+        body {
+            background: #f5f5f5;
+            color: #24292f;
+            font-family: sans-serif;
+            margin: 0;
+        }
+
+        main {
+            margin: 10vh auto;
+            max-width: 42rem;
+            padding: 2rem;
+        }
+
+        section {
+            background: #fff;
+            border-radius: .5rem;
+            box-shadow: 0 1px 4px #0002;
+            padding: 2rem;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .status {
+            color: #666;
+            font-size: .9rem;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <section>
+        <p class="status">{{.StatusCode}}</p>
+        {{if eq .StatusCode 403}}
+        <h1>Your account is not authorized to access ECHOES Support</h1>
+        <p>
+            Access is limited to members of the ECHOES organization. Please
+            contact your organization administrator and ask them to verify or
+            grant your ECHOES membership, then sign in again.
+        </p>
+        {{else}}
+        <h1>{{.Title}}</h1>
+        <p>{{.Message}}</p>
+        <p>If the problem persists, please contact support.</p>
+        {{end}}
+    </section>
+</main>
+</body>
+</html>
+{{end}}

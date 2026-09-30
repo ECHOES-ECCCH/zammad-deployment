@@ -1,0 +1,2 @@
+resources:
+  - s3-restore-backup-job.yaml
